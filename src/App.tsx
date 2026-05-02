@@ -5,13 +5,16 @@
 
 import React, { useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, RefreshCcw, QrCode, Trash2, Link as LinkIcon, Type, Image as ImageIcon, X, Palette, Mail, MessageSquare, LifeBuoy, FileText, Wifi, Shield, Lock, Unlock, User, Phone, Briefcase, Globe, MapPin, Contact2, Building2, Scan, Camera, Check, ExternalLink, Copy, ShieldCheck } from 'lucide-react';
+import { Download, RefreshCcw, QrCode, Trash2, Link as LinkIcon, Type, Image as ImageIcon, X, Palette, Mail, MessageSquare, LifeBuoy, FileText, Wifi, Shield, Lock, Unlock, User, Phone, Briefcase, Globe, MapPin, Contact2, Building2, Scan, Camera, Check, ExternalLink, Copy, ShieldCheck, KeyRound } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import BarcodeScanner from 'react-qr-barcode-scanner';
 import TOTPDashboard from './components/TOTPDashboard';
+import PasswordGenerator from './components/PasswordGenerator';
+import PasswordVault from './components/PasswordVault';
 
 export default function App() {
-  const [mode, setMode] = useState<'standard' | 'email' | 'wifi' | 'contact' | 'scan' | 'authenticator'>('standard');
+  const [mode, setMode] = useState<'standard' | 'email' | 'wifi' | 'contact' | 'scan' | 'authenticator' | 'passwords'>('standard');
+  const [passwordSubMode, setPasswordSubMode] = useState<'generator' | 'vault'>('generator');
   const [text, setText] = useState('');
   
   // Email state
@@ -253,9 +256,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Mode Toggle */}
             <div className="flex p-1 bg-gray-100 rounded-2xl w-full lg:w-auto overflow-x-auto shadow-inner scrollbar-hide">
-              {(['standard', 'email', 'wifi', 'contact', 'scan', 'authenticator'] as const).map((m) => (
+              {(['standard', 'email', 'wifi', 'contact', 'scan', 'authenticator', 'passwords'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => {
@@ -271,7 +273,7 @@ export default function App() {
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  {m === 'standard' ? 'Standard' : m === 'email' ? 'Email' : m === 'wifi' ? 'Wi-Fi' : m === 'contact' ? 'Contact' : m === 'scan' ? 'Scan QR' : 'Authenticator'}
+                  {m === 'standard' ? 'Standard' : m === 'email' ? 'Email' : m === 'wifi' ? 'Wi-Fi' : m === 'contact' ? 'Contact' : m === 'scan' ? 'Scan QR' : m === 'authenticator' ? 'Authenticator' : 'Passwords'}
                 </button>
               ))}
             </div>
@@ -681,7 +683,7 @@ export default function App() {
                     </p>
                   </div>
                 </motion.div>
-              ) : (
+              ) : mode === 'authenticator' ? (
                 <motion.div
                   key="authenticator"
                   initial={{ opacity: 0, y: 10 }}
@@ -690,11 +692,49 @@ export default function App() {
                 >
                   <TOTPDashboard />
                 </motion.div>
+              ) : (
+                <motion.div
+                  key="passwords"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6"
+                >
+                  {/* Passwords Sub-Navigation */}
+                  <div className="flex justify-center mb-6">
+                    <div className="flex p-1 bg-gray-100 rounded-xl">
+                      <button
+                        onClick={() => setPasswordSubMode('generator')}
+                        className={`px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                          passwordSubMode === 'generator' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <RefreshCcw size={14} />
+                        Generator
+                      </button>
+                      <button
+                        onClick={() => setPasswordSubMode('vault')}
+                        className={`px-6 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+                          passwordSubMode === 'vault' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <Lock size={14} />
+                        Secure Vault
+                      </button>
+                    </div>
+                  </div>
+
+                  {passwordSubMode === 'generator' ? (
+                    <PasswordGenerator />
+                  ) : (
+                    <PasswordVault />
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Actions (Hidden in Scan Mode) */}
-            {mode !== 'scan' && mode !== 'authenticator' && (
+            {/* Actions (Hidden in Scan/Authenticator/Passwords Mode) */}
+            {mode !== 'scan' && mode !== 'authenticator' && mode !== 'passwords' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-4 col-span-full">
                   <div className="flex flex-col sm:flex-row gap-6">
@@ -806,9 +846,9 @@ export default function App() {
               </div>
             )}
 
-            {/* Output Section (Hidden in Scan Mode) */}
+            {/* Output Section (Hidden in Scan/Authenticator/Passwords Mode) */}
             <AnimatePresence mode="wait">
-              {qrValue && mode !== 'scan' && mode !== 'authenticator' && (
+              {qrValue && mode !== 'scan' && mode !== 'authenticator' && mode !== 'passwords' && (
                 <motion.div
                   key={qrValue + (logoUrl || '') + fgColor + bgColor}
                   initial={{ opacity: 0, y: 20 }}
@@ -888,7 +928,7 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            {!qrValue && mode !== 'scan' && mode !== 'authenticator' && (
+            {!qrValue && mode !== 'scan' && mode !== 'authenticator' && mode !== 'passwords' && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
