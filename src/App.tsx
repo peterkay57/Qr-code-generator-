@@ -5,11 +5,13 @@
 
 import React, { useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, RefreshCcw, QrCode, Trash2, Link as LinkIcon, Type, Image as ImageIcon, X, Palette, Mail, MessageSquare, LifeBuoy, FileText, Wifi, Shield, Lock, Unlock, User, Phone, Briefcase, Globe, MapPin, Contact2, Building2 } from 'lucide-react';
+import { Download, RefreshCcw, QrCode, Trash2, Link as LinkIcon, Type, Image as ImageIcon, X, Palette, Mail, MessageSquare, LifeBuoy, FileText, Wifi, Shield, Lock, Unlock, User, Phone, Briefcase, Globe, MapPin, Contact2, Building2, Scan, Camera, Check, ExternalLink, Copy, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import BarcodeScanner from 'react-qr-barcode-scanner';
+import TOTPDashboard from './components/TOTPDashboard';
 
 export default function App() {
-  const [mode, setMode] = useState<'standard' | 'email' | 'wifi' | 'contact'>('standard');
+  const [mode, setMode] = useState<'standard' | 'email' | 'wifi' | 'contact' | 'scan' | 'authenticator'>('standard');
   const [text, setText] = useState('');
   
   // Email state
@@ -39,6 +41,13 @@ export default function App() {
   const [bgColor, setBgColor] = useState('#ffffff');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showCopied, setShowCopied] = useState(false);
+
+  // Scanner state
+  const [scanResult, setScanResult] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [isScannerInitialized, setIsScannerInitialized] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerate = () => {
@@ -246,17 +255,23 @@ export default function App() {
 
             {/* Mode Toggle */}
             <div className="flex p-1 bg-gray-100 rounded-2xl w-full lg:w-auto overflow-x-auto shadow-inner scrollbar-hide">
-              {(['standard', 'email', 'wifi', 'contact'] as const).map((m) => (
+              {(['standard', 'email', 'wifi', 'contact', 'scan', 'authenticator'] as const).map((m) => (
                 <button
                   key={m}
-                  onClick={() => setMode(m)}
+                  onClick={() => {
+                    setMode(m);
+                    if (m !== 'scan') {
+                      setScanResult(null);
+                      setCameraError(null);
+                    }
+                  }}
                   className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     mode === m 
                       ? 'bg-linear-to-br from-indigo-600 to-purple-600 text-white shadow-md' 
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
-                  {m === 'standard' ? 'Standard' : m === 'email' ? 'Email' : m === 'wifi' ? 'Wi-Fi' : 'Contact'}
+                  {m === 'standard' ? 'Standard' : m === 'email' ? 'Email' : m === 'wifi' ? 'Wi-Fi' : m === 'contact' ? 'Contact' : m === 'scan' ? 'Scan QR' : 'Authenticator'}
                 </button>
               ))}
             </div>
@@ -435,7 +450,7 @@ export default function App() {
                     </p>
                   </div>
                 </motion.div>
-              ) : (
+              ) : mode === 'contact' ? (
                 <motion.div
                   key="contact"
                   initial={{ opacity: 0, x: -20 }}
@@ -578,123 +593,222 @@ export default function App() {
                     </p>
                   </div>
                 </motion.div>
+              ) : mode === 'scan' ? (
+                <motion.div
+                  key="scan"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex flex-col items-center gap-6"
+                >
+                  <div className="relative w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+                    {cameraError ? (
+                      <div className="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center p-6 text-center">
+                        <X size={48} className="text-red-500 mb-4" />
+                        <p className="text-gray-800 font-bold mb-2">Camera Access Error</p>
+                        <p className="text-gray-500 text-sm">{cameraError}</p>
+                      </div>
+                    ) : (
+                      <>
+                        {!isScannerInitialized && (
+                          <div className="absolute inset-0 z-10 bg-gray-50 flex flex-col items-center justify-center gap-3">
+                            <RefreshCcw className="animate-spin text-indigo-600" size={32} />
+                            <p className="text-indigo-600 font-bold text-sm">Initializing camera...</p>
+                          </div>
+                        )}
+                        <div className="w-full h-full relative">
+                          <BarcodeScanner
+                            onUpdate={(err, result) => {
+                              if (result) {
+                                setScanResult(result.getText());
+                              }
+                              if (err) {
+                                // Only set error if it's not the "NotFoundException" or specific message which happens every frame without code
+                                const error = err as any;
+                                const errorMessage = typeof err === 'string' ? err : (error.message || '');
+                                if (
+                                  error.name !== 'NotFoundException' && 
+                                  !errorMessage.includes('No MultiFormat Readers') &&
+                                  !errorMessage.includes('NotFoundException')
+                                ) {
+                                  console.error('Scanner error:', err);
+                                }
+                              }
+                              if (!isScannerInitialized) setIsScannerInitialized(true);
+                            }}
+                            facingMode={facingMode}
+                          />
+                        </div>
+                        {/* Scanning Brackets */}
+                        <div className="absolute inset-x-12 inset-y-12 border-2 border-indigo-400 opacity-50 rounded-2xl pointer-events-none">
+                          <motion.div 
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                            className="absolute inset-0 border-2 border-indigo-500 rounded-2xl shadow-[0_0_20px_rgba(79,70,229,0.3)]"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setFacingMode(prev => prev === 'user' ? 'environment' : 'user')}
+                      className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-600 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
+                    >
+                      <Camera size={18} />
+                      Switch Camera
+                    </button>
+                    {!cameraError && (
+                      <button
+                        onClick={() => {
+                          setIsScannerInitialized(false);
+                          // A small toggle to force re-render if needed
+                          setFacingMode(prev => prev);
+                        }}
+                        className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-600 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
+                      >
+                        <RefreshCcw size={18} />
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 flex gap-3 max-w-sm">
+                    <Scan size={20} className="text-indigo-500 shrink-0" />
+                    <p className="text-indigo-700 text-xs leading-relaxed font-medium">
+                      Point your camera at a QR code to decode it. Supports URLs, text, and formatted data.
+                    </p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="authenticator"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <TOTPDashboard />
+                </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-4 col-span-full">
-                <div className="flex flex-col sm:flex-row gap-6">
-                  {/* Logo Upload */}
-                  <div className="flex-1 space-y-2">
-                    <label className="text-sm font-bold text-gray-700 ml-1 flex items-center gap-2">
-                      <ImageIcon size={14} />
-                      Center Logo
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleLogoUpload}
-                        accept="image/*"
-                        className="hidden"
-                        id="logo-upload"
-                      />
-                      {!logoUrl ? (
-                        <label
-                          htmlFor="logo-upload"
-                          className="flex-1 border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all rounded-2xl py-3 flex items-center justify-center gap-2 cursor-pointer text-gray-400 font-bold text-sm bg-gray-50/20"
-                        >
-                          <ImageIcon size={16} />
-                          Upload
-                        </label>
-                      ) : (
-                        <div className="flex-1 flex items-center gap-3 bg-indigo-50 p-2 rounded-2xl border border-indigo-100">
-                          <div className="w-10 h-10 rounded-lg bg-white p-1 shadow-sm overflow-hidden flex items-center justify-center">
-                            <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
-                          </div>
-                          <span className="flex-1 text-xs font-bold text-indigo-700 truncate">Logo added</span>
-                          <button 
-                            onClick={removeLogo}
-                            className="p-1.5 hover:bg-indigo-100 rounded-full text-indigo-600 transition-colors"
+            {/* Actions (Hidden in Scan Mode) */}
+            {mode !== 'scan' && mode !== 'authenticator' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-4 col-span-full">
+                  <div className="flex flex-col sm:flex-row gap-6">
+                    {/* Logo Upload */}
+                    <div className="flex-1 space-y-2">
+                      <label className="text-sm font-bold text-gray-700 ml-1 flex items-center gap-2">
+                        <ImageIcon size={14} />
+                        Center Logo
+                      </label>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleLogoUpload}
+                          accept="image/*"
+                          className="hidden"
+                          id="logo-upload"
+                        />
+                        {!logoUrl ? (
+                          <label
+                            htmlFor="logo-upload"
+                            className="flex-1 border-2 border-dashed border-gray-200 hover:border-indigo-400 hover:bg-indigo-50/30 transition-all rounded-2xl py-3 flex items-center justify-center gap-2 cursor-pointer text-gray-400 font-bold text-sm bg-gray-50/20"
                           >
-                            <X size={16} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Colors */}
-                  <div className="flex-1 space-y-2">
-                    <label className="text-sm font-bold text-gray-700 ml-1 flex items-center gap-2">
-                      <Palette size={14} />
-                      Custom Colors
-                    </label>
-                    <div className="flex items-center gap-4 p-2 bg-gray-50/50 border border-gray-200 rounded-2xl">
-                      <div className="flex-1 flex items-center gap-2 px-1">
-                        <div className="relative">
-                          <input 
-                            type="color" 
-                            value={fgColor} 
-                            onChange={(e) => setFgColor(e.target.value)}
-                            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0 overflow-hidden"
-                          />
-                        </div>
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Module</span>
+                            <ImageIcon size={16} />
+                            Upload
+                          </label>
+                        ) : (
+                          <div className="flex-1 flex items-center gap-3 bg-indigo-50 p-2 rounded-2xl border border-indigo-100">
+                            <div className="w-10 h-10 rounded-lg bg-white p-1 shadow-sm overflow-hidden flex items-center justify-center">
+                              <img src={logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                            </div>
+                            <span className="flex-1 text-xs font-bold text-indigo-700 truncate">Logo added</span>
+                            <button 
+                              onClick={removeLogo}
+                              className="p-1.5 hover:bg-indigo-100 rounded-full text-indigo-600 transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <div className="w-px h-6 bg-gray-200" />
-                      <div className="flex-1 flex items-center gap-2 px-1 text-right justify-end">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">BG</span>
-                        <div className="relative">
-                          <input 
-                            type="color" 
-                            value={bgColor} 
-                            onChange={(e) => setBgColor(e.target.value)}
-                            className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0 overflow-hidden"
-                          />
+                    </div>
+
+                    {/* Colors */}
+                    <div className="flex-1 space-y-2">
+                      <label className="text-sm font-bold text-gray-700 ml-1 flex items-center gap-2">
+                        <Palette size={14} />
+                        Custom Colors
+                      </label>
+                      <div className="flex items-center gap-4 p-2 bg-gray-50/50 border border-gray-200 rounded-2xl">
+                        <div className="flex-1 flex items-center gap-2 px-1">
+                          <div className="relative">
+                            <input 
+                              type="color" 
+                              value={fgColor} 
+                              onChange={(e) => setFgColor(e.target.value)}
+                              className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0 overflow-hidden"
+                            />
+                          </div>
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Module</span>
+                        </div>
+                        <div className="w-px h-6 bg-gray-200" />
+                        <div className="flex-1 flex items-center gap-2 px-1 text-right justify-end">
+                          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">BG</span>
+                          <div className="relative">
+                            <input 
+                              type="color" 
+                              value={bgColor} 
+                              onChange={(e) => setBgColor(e.target.value)}
+                              className="w-8 h-8 rounded-lg cursor-pointer border-0 p-0 overflow-hidden"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleGenerate}
-                disabled={
-                  (mode === 'standard' ? !text.trim() : 
-                   mode === 'email' ? !recipient.trim() : 
-                   mode === 'wifi' ? !ssid.trim() : 
-                   !contactName.trim()) || isGenerating
-                }
-                className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-indigo-200 transition-colors flex items-center justify-center gap-2 cursor-pointer col-span-1"
-              >
-                <motion.div
-                  animate={isGenerating ? { rotate: 360 } : {}}
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleGenerate}
+                  disabled={
+                    (mode === 'standard' ? !text.trim() : 
+                     mode === 'email' ? !recipient.trim() : 
+                     mode === 'wifi' ? !ssid.trim() : 
+                     !contactName.trim()) || isGenerating
+                  }
+                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-indigo-200 transition-colors flex items-center justify-center gap-2 cursor-pointer col-span-1"
                 >
-                  <RefreshCcw size={20} />
-                </motion.div>
-                {isGenerating ? 'Generating...' : 'Generate QR Code'}
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.02, backgroundColor: '#fee2e2' }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleClear}
-                className="bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold py-4 px-6 rounded-2xl border border-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer col-span-1"
-              >
-                <Trash2 size={20} />
-                Clear
-              </motion.button>
-            </div>
+                  <motion.div
+                    animate={isGenerating ? { rotate: 360 } : {}}
+                    transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                  >
+                    <RefreshCcw size={20} />
+                  </motion.div>
+                  {isGenerating ? 'Generating...' : 'Generate QR Code'}
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02, backgroundColor: '#fee2e2' }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleClear}
+                  className="bg-gray-50 hover:bg-gray-100 text-gray-600 font-bold py-4 px-6 rounded-2xl border border-gray-200 transition-colors flex items-center justify-center gap-2 cursor-pointer col-span-1"
+                >
+                  <Trash2 size={20} />
+                  Clear
+                </motion.button>
+              </div>
+            )}
 
-            {/* Output Section */}
+            {/* Output Section (Hidden in Scan Mode) */}
             <AnimatePresence mode="wait">
-              {qrValue && (
+              {qrValue && mode !== 'scan' && mode !== 'authenticator' && (
                 <motion.div
                   key={qrValue + (logoUrl || '') + fgColor + bgColor}
                   initial={{ opacity: 0, y: 20 }}
@@ -774,7 +888,7 @@ export default function App() {
               )}
             </AnimatePresence>
 
-            {!qrValue && (
+            {!qrValue && mode !== 'scan' && mode !== 'authenticator' && (
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -788,6 +902,95 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {/* Scan Result Modal */}
+        <AnimatePresence>
+          {scanResult && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+              >
+                <div className="p-6 sm:p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-100 rounded-xl text-emerald-600">
+                        <Check size={24} />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900">Scan Successful!</h3>
+                    </div>
+                    <button 
+                      onClick={() => setScanResult(null)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">
+                        Decoded Content
+                      </label>
+                      <div className="p-5 bg-gray-50 border border-gray-100 rounded-2xl break-all font-mono text-sm text-gray-700 leading-relaxed max-h-40 overflow-y-auto scrollbar-hide">
+                        {scanResult}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {scanResult.startsWith('http') && (
+                        <button
+                          onClick={() => window.open(scanResult, '_blank')}
+                          className="flex items-center justify-center gap-2 p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-100"
+                        >
+                          <ExternalLink size={18} />
+                          Open Link
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(scanResult);
+                          // We could add a small toast here if needed
+                        }}
+                        className={`flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:border-indigo-600 hover:text-indigo-600 text-gray-700 rounded-2xl font-bold transition-all shadow-sm ${!scanResult.startsWith('http') ? 'col-span-2' : ''}`}
+                      >
+                        <Copy size={18} />
+                        Copy Content
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setText(scanResult);
+                        setMode('standard');
+                        setScanResult(null);
+                        handleGenerate();
+                      }}
+                      className="w-full flex items-center justify-center gap-2 p-4 bg-linear-to-br from-indigo-600 to-purple-600 text-white rounded-2xl font-bold transition-all shadow-xl shadow-indigo-100"
+                    >
+                      <RefreshCcw size={18} />
+                      Generate from this data
+                    </button>
+
+                    <button
+                      onClick={() => setScanResult(null)}
+                      className="w-full p-4 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-2xl font-bold transition-all border border-gray-200"
+                    >
+                      Scan Another QR
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Footer info */}
         <div className="bg-gray-900 px-8 py-4 text-center">
