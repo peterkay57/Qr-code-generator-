@@ -1,0 +1,6 @@
+{
+  "name": "QR Code Generator",
+  "description": "A modern, high-quality QR code generator with live preview and download capabilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
