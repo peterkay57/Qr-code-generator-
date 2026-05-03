@@ -1033,10 +1033,14 @@ export default function App() {
         </AnimatePresence>
 
         {/* Footer info */}
-        <div className="bg-gray-900 px-8 py-4 text-center">
+        <div className="bg-gray-900 px-8 py-6 text-center space-y-4">
           <p className="text-[10px] text-gray-400 font-bold uppercase tracking-[0.2em]">
             Instant Client-Side Encoding • Private & Secure
           </p>
+          <div className="flex items-center justify-center gap-6">
+            <a href="privacy.html" className="text-[10px] text-gray-500 hover:text-white font-bold uppercase tracking-widest transition-colors">Privacy Policy</a>
+            <a href="terms.html" className="text-[10px] text-gray-500 hover:text-white font-bold uppercase tracking-widest transition-colors">Terms of Service</a>
+          </div>
         </div>
       </motion.div>
     </div>
