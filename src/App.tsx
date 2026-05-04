@@ -5,9 +5,10 @@
 
 import React, { useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Download, RefreshCcw, QrCode, Trash2, Link as LinkIcon, Type, Image as ImageIcon, X, Palette, Mail, MessageSquare, LifeBuoy, FileText, Wifi, Shield, Lock, Unlock, User, Phone, Briefcase, Globe, MapPin, Contact2, Building2, Scan, Camera, Check, ExternalLink, Copy, ShieldCheck, KeyRound } from 'lucide-react';
+import { Download, RefreshCcw, QrCode, Trash2, Link as LinkIcon, Type, Image as ImageIcon, X, Palette, Mail, MessageSquare, LifeBuoy, FileText, Wifi, Shield, Lock, Unlock, User, Phone, Briefcase, Globe, MapPin, Contact2, Building2, Scan, Camera, Check, ExternalLink, Copy, ShieldCheck, KeyRound, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import BarcodeScanner from 'react-qr-barcode-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import TOTPDashboard from './components/TOTPDashboard';
 import PasswordGenerator from './components/PasswordGenerator';
 import PasswordVault from './components/PasswordVault';
@@ -50,8 +51,11 @@ export default function App() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [isScannerInitialized, setIsScannerInitialized] = useState(false);
+  const [isImageScanning, setIsImageScanning] = useState(false);
+  const [imageScanError, setImageScanError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const qrImageInputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerate = () => {
     let finalValue = '';
@@ -193,6 +197,28 @@ export default function App() {
   const removeLogo = () => {
     setLogoUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImageScanning(true);
+    setImageScanError(null);
+    setScanResult(null);
+
+    try {
+      const html5QrCode = new Html5Qrcode("qr-reader-container");
+      const result = await html5QrCode.scanFile(file, true);
+      setScanResult(result);
+      setIsImageScanning(false);
+    } catch (err: any) {
+      console.error("Image scan error:", err);
+      setImageScanError("No QR code found in this image. Please try another.");
+      setIsImageScanning(false);
+    }
+    
+    if (qrImageInputRef.current) qrImageInputRef.current.value = '';
   };
 
   const downloadQRCode = () => {
@@ -676,6 +702,33 @@ export default function App() {
                     )}
                   </div>
 
+                  <div className="flex flex-col items-center gap-3 w-full max-w-sm">
+                    <input
+                      type="file"
+                      ref={qrImageInputRef}
+                      onChange={handleImageUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => qrImageInputRef.current?.click()}
+                      disabled={isImageScanning}
+                      className="w-full flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:border-indigo-600 hover:text-indigo-600 text-gray-700 rounded-2xl font-bold transition-all shadow-sm disabled:opacity-50"
+                    >
+                      {isImageScanning ? <RefreshCcw size={18} className="animate-spin text-indigo-600" /> : <ImageIcon size={18} />}
+                      {isImageScanning ? 'Scanning QR code from image...' : '📸 Upload QR Code Image'}
+                    </button>
+                    
+                    {imageScanError && (
+                      <div className="w-full p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-xs font-bold text-center flex items-center justify-center gap-2">
+                        <AlertCircle size={14} />
+                        {imageScanError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div id="qr-reader-container" style={{ display: 'none' }}></div>
+
                   <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 flex gap-3 max-w-sm">
                     <Scan size={20} className="text-indigo-500 shrink-0" />
                     <p className="text-indigo-700 text-xs leading-relaxed font-medium">
@@ -975,17 +1028,38 @@ export default function App() {
                   </div>
 
                   <div className="space-y-6">
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">
                         Decoded Content
                       </label>
-                      <div className="p-5 bg-gray-50 border border-gray-100 rounded-2xl break-all font-mono text-sm text-gray-700 leading-relaxed max-h-40 overflow-y-auto scrollbar-hide">
-                        {scanResult}
-                      </div>
+                      
+                      {scanResult && /^(https?:\/\/)/i.test(scanResult) ? (
+                        <div className="space-y-4">
+                          <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-2xl break-all">
+                            <a 
+                              href={scanResult} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="flex items-start gap-3 group"
+                            >
+                              <div className="p-2 bg-white rounded-lg text-indigo-600 shadow-sm shrink-0">
+                                <Globe size={18} />
+                              </div>
+                              <span className="text-indigo-600 font-bold hover:underline leading-tight py-1 transition-all">
+                                {scanResult}
+                              </span>
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-5 bg-gray-50 border border-gray-100 rounded-2xl break-all font-mono text-sm text-gray-700 leading-relaxed max-h-40 overflow-y-auto scrollbar-hide">
+                          {scanResult}
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      {scanResult.startsWith('http') && (
+                      {scanResult && /^(https?:\/\/)/i.test(scanResult) && (
                         <button
                           onClick={() => window.open(scanResult, '_blank')}
                           className="flex items-center justify-center gap-2 p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-100"
@@ -996,10 +1070,9 @@ export default function App() {
                       )}
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(scanResult);
-                          // We could add a small toast here if needed
+                          if (scanResult) navigator.clipboard.writeText(scanResult);
                         }}
-                        className={`flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:border-indigo-600 hover:text-indigo-600 text-gray-700 rounded-2xl font-bold transition-all shadow-sm ${!scanResult.startsWith('http') ? 'col-span-2' : ''}`}
+                        className={`flex items-center justify-center gap-2 p-4 bg-white border border-gray-200 hover:border-indigo-600 hover:text-indigo-600 text-gray-700 rounded-2xl font-bold transition-all shadow-sm ${scanResult && !/^(https?:\/\/)/i.test(scanResult) ? 'col-span-2' : ''}`}
                       >
                         <Copy size={18} />
                         Copy Content
