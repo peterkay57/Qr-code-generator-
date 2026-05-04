@@ -51,6 +51,7 @@ export default function App() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [isScannerInitialized, setIsScannerInitialized] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
   const [isImageScanning, setIsImageScanning] = useState(false);
   const [imageScanError, setImageScanError] = useState<string | null>(null);
 
@@ -291,6 +292,7 @@ export default function App() {
                     if (m !== 'scan') {
                       setScanResult(null);
                       setCameraError(null);
+                      setIsCameraActive(false);
                     }
                   }}
                   className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
@@ -629,12 +631,36 @@ export default function App() {
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="flex flex-col items-center gap-6"
                 >
-                  <div className="relative w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-white">
+                  <div className="relative w-full max-w-[320px] aspect-square rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-gray-50">
                     {cameraError ? (
                       <div className="absolute inset-0 bg-gray-100 flex flex-col items-center justify-center p-6 text-center">
                         <X size={48} className="text-red-500 mb-4" />
                         <p className="text-gray-800 font-bold mb-2">Camera Access Error</p>
                         <p className="text-gray-500 text-sm">{cameraError}</p>
+                        <button 
+                          onClick={() => {
+                            setCameraError(null);
+                            setIsCameraActive(true);
+                          }}
+                          className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md"
+                        >
+                          Try Again
+                        </button>
+                      </div>
+                    ) : !isCameraActive ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-gray-50/80 backdrop-blur-sm">
+                        <div className="p-4 bg-indigo-100 rounded-full text-indigo-600 mb-4">
+                          <Camera size={48} />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">Ready to Scan?</h3>
+                        <p className="text-gray-500 text-xs mb-6">Camera permission is required to scan QR codes instantly.</p>
+                        <button
+                          onClick={() => setIsCameraActive(true)}
+                          className="w-full py-4 bg-linear-to-br from-indigo-600 to-purple-600 text-white font-bold rounded-2xl shadow-xl shadow-indigo-100 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Camera size={20} />
+                          Start Camera
+                        </button>
                       </div>
                     ) : (
                       <>
@@ -651,10 +677,13 @@ export default function App() {
                                 setScanResult(result.getText());
                               }
                               if (err) {
-                                // Only set error if it's not the "NotFoundException" or specific message which happens every frame without code
                                 const error = err as any;
                                 const errorMessage = typeof err === 'string' ? err : (error.message || '');
-                                if (
+                                
+                                if (errorMessage.includes('Permission denied')) {
+                                  setCameraError('Camera access denied. Please allow camera permission in your browser settings.');
+                                  setIsCameraActive(false);
+                                } else if (
                                   error.name !== 'NotFoundException' && 
                                   !errorMessage.includes('No MultiFormat Readers') &&
                                   !errorMessage.includes('NotFoundException')
@@ -680,25 +709,26 @@ export default function App() {
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setFacingMode(prev => prev === 'user' ? 'environment' : 'user')}
-                      className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-600 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
-                    >
-                      <Camera size={18} />
-                      Switch Camera
-                    </button>
-                    {!cameraError && (
-                      <button
-                        onClick={() => {
-                          setIsScannerInitialized(false);
-                          // A small toggle to force re-render if needed
-                          setFacingMode(prev => prev);
-                        }}
-                        className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-600 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
-                      >
-                        <RefreshCcw size={18} />
-                        Reset
-                      </button>
+                    {isCameraActive && !cameraError && (
+                      <>
+                        <button
+                          onClick={() => setFacingMode(prev => prev === 'user' ? 'environment' : 'user')}
+                          className="p-3 bg-white border border-gray-200 rounded-2xl text-gray-600 hover:text-indigo-600 hover:border-indigo-600 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
+                        >
+                          <Camera size={18} />
+                          Switch
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsCameraActive(false);
+                            setIsScannerInitialized(false);
+                          }}
+                          className="p-3 bg-white border border-gray-200 rounded-2xl text-red-500 hover:bg-red-50 border-red-100 transition-all shadow-sm flex items-center gap-2 font-bold text-sm"
+                        >
+                          <X size={18} />
+                          Stop
+                        </button>
+                      </>
                     )}
                   </div>
 
